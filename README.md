@@ -203,9 +203,11 @@ we account for the number of primitive operations being c  + c  · n for appropr
      Consider: context length limits, multilingual support, accuracy on domain-specific text,
      latency, and local vs. API-hosted. -->
 
-**Model used:**
+**Model used:** `BAAI/bge-small-en-v1.5` through sentence-transformers, running locally. Embeddings are normalized and stored in ChromaDB (`chroma_db/`, collection `dsa_guide`) with cosine distance. Queries get bge's retrieval prefix ("Represent this sentence for searching relevant passages: "); chunks don't. I chose it over the default `all-MiniLM-L6-v2` because MiniLM only reads the first 256 tokens (~1,000 characters) of each chunk. My chunks are ~1,500 characters, and the cut-off part is usually the code and the complexity line. bge-small reads 512 tokens, outputs the same 384 dimensions, ran on my laptop CPU in a couple of minutes for all 2,047 chunks, and scores better on retrieval benchmarks.
 
-**Production tradeoff reflection:**
+Retrieval settings (`rag.py`): top-k = 5, picked from the 25 nearest chunks with at most 3 chunks per document, so the textbook (933 of the 2,047 chunks) can't take every slot.
+
+**Production tradeoff reflection:** If cost didn't matter, the first thing I'd change is context length. Code is token-heavy, so a model with an 8k-token window (bge-m3, OpenAI `text-embedding-3-large`) would let one chunk hold a whole problem walkthrough instead of splitting explanation and code. Accuracy on this kind of text is the next issue: a code-aware model (like Voyage's code embeddings) would probably match a plain-English question to a JavaScript or Python chunk better than a general model, but larger models are slower per query and API models charge per token. Multilingual support doesn't matter for my sources since they're all English, but it would if non-native speakers wanted to ask questions in their own language. Local vs. API: local is free, private, works offline and has no rate limits, but re-embedding is CPU-bound. An API model is usually more accurate and needs no hardware, but adds network latency, ongoing cost, and a dependency on the provider keeping that model version around (changing models means re-embedding everything).
 
 ---
 
@@ -215,36 +217,44 @@ we account for the number of primitive operations being c  + c  · n for appropr
      For at least 2 of the 3, explain why the returned chunks are relevant to the query.
      Results must be text — not screenshots. -->
 
-**Query 1:**
+**Query 1:** In Floyd's fast and slow pointer algorithm, once the two pointers meet inside the loop, how do you find the node where the cycle starts, and what are the time and space complexities?
 
 Top returned chunks:
--
--
--
+- `gfg-floyd-fast-slow-pointers-0002` (distance 0.084). *How does Floyd's slow and fast pointers approach work? - GeeksforGeeks*
+- `gfg-floyd-fast-slow-pointers-0000` (distance 0.098). *How does Floyd's slow and fast pointers approach work? - GeeksforGeeks*
+- `gfg-floyd-fast-slow-pointers-0001` (distance 0.144). *How does Floyd's slow and fast pointers approach work? - GeeksforGeeks*
+- `github-patterns-p03-fast-slow-pointers-0005` (distance 0.191). *Pattern 3: Fast & Slow pointers* > Start of LinkedList Cycle (medium)
+- `github-patterns-p03-fast-slow-pointers-0003` (distance 0.191). *Pattern 3: Fast & Slow pointers* > LinkedList Cycle (easy)
 
-Relevance explanation:
+Relevance explanation: The top chunk (distance 0.084) is the GeeksforGeeks section that answers the question directly: reset the slow pointer to the head, leave the fast pointer at the meeting point, move both one node at a time, and they meet at the cycle start, in O(n) time and O(1) space. The next GfG chunk has the math for *why* it works (m + k is a multiple of the cycle length), and the GitHub Pattern 3 chunk "Start of LinkedList Cycle" gives the same method with code, so the answer is covered by two independent sources.
 
 ---
 
-**Query 2:**
+**Query 2:** How do you modify binary search to find the ceiling of a key in a sorted array (smallest element ≥ key)?
 
 Top returned chunks:
--
--
--
+- `github-patterns-p11-modified-binary-search-0003` (distance 0.083). *Pattern 11: Modified Binary Search* > Ceiling of a Number (medium)
+- `github-patterns-p11-modified-binary-search-0005` (distance 0.130). *Pattern 11: Modified Binary Search* > Ceiling of a Number (medium) > Similar Problem
+- `github-patterns-p11-modified-binary-search-0004` (distance 0.142). *Pattern 11: Modified Binary Search* > Ceiling of a Number (medium)
+- `textbook-goodrich-dsa-in-python-0636` (distance 0.234). *Data Structures and Algorithms in Python* > 11.1 Binary Search Trees > 11.1.5 Performance of a Binary Search Tree
+- `textbook-goodrich-dsa-in-python-0623` (distance 0.236). *Data Structures and Algorithms in Python* > 11.1 Binary Search Trees > 11.1.2 Searches
 
-Relevance explanation:
+Relevance explanation: All three top chunks come from the "Ceiling of a Number" problem in GitHub Pattern 11. The first (0.083) is the explanation (if the key is found, return its index; otherwise `start` ends on the next bigger number; return -1 if the key is larger than the last element). Chunk `-0004` is the matching JavaScript code. The related "Similar Problem" (floor of a number) also shows up. Getting the code chunk in the top 5 needed a tweak: with my original cap of 2 chunks per document, the code chunk was dropped (see below).
 
 ---
 
-**Query 3:**
+**Query 3:** Why can't Dijkstra's algorithm be used on graphs with negative edge weights, what should you use instead, and what happens if the graph has a negative cycle?
 
 Top returned chunks:
--
--
--
+- `w3schools-theory-graphs-shortestpath-0002` (distance 0.163). *DSA Shortest Path* > Positive and Negative Edge Weights
+- `w3schools-theory-graphs-shortestpath-0003` (distance 0.177). *DSA Shortest Path* > Negative Cycles in Shortest Path Problems
+- `w3schools-algo-graphs-bellmanford-0007` (distance 0.195). *DSA Bellman-Ford Algorithm* > Negative Cycles in The Bellman-Ford Algorithm
+- `textbook-goodrich-dsa-in-python-0866` (distance 0.198). *Data Structures and Algorithms in Python* > 14.6 Shortest Paths > 14.6.1 Weighted Graphs
+- `w3schools-algo-graphs-dijkstra-0012` (distance 0.203). *DSA Dijkstra's Algorithm* > Dijkstra's Algorithm on Directed Graphs
 
-Relevance explanation:
+Relevance explanation: The answer is spread across W3Schools pages, and retrieval pulled from three of them. "Positive and Negative Edge Weights" says Dijkstra only works when all edges are positive and that Bellman-Ford handles negative edges. "Negative Cycles in Shortest Path Problems" and the Bellman-Ford page's negative-cycle section explain that a negative cycle means no shortest path exists, because you can always go around once more, and that Bellman-Ford can detect this. The W3Schools Dijkstra page chunk that says "does not work for graphs with negative edges" verbatim was *not* in the top 5, but the retrieved chunks cover the same facts.
+
+**Tuning note:** My first version followed planning.md (top 10 candidates, max 2 chunks per document). For Query 2, all 10 candidates came from Pattern 11, so only 2 chunks were returned, and the ceiling *code* chunk (`-0004`, distance 0.142) was thrown out. I changed it to 25 candidates with max 3 per document. All 5 evaluation questions now return 5 chunks, and every top result has a distance below 0.17.
 
 ---
 

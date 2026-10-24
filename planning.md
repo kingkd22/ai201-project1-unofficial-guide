@@ -73,6 +73,8 @@ The textbook is different since it's a PDF. It's over half the whole corpus and 
 
 **Top-k:** 5. Some of my questions need info from two different pages (like Dijkstra vs Bellman-Ford), so I want more than 2–3 chunks, but not so many that the answer gets buried. Since the textbook is more than half of all chunks, I'll grab the top 10 and only keep 2 chunks max from any one document, so the textbook can't take every spot.
 
+*Update after testing retrieval (Milestone 4):* I changed this to the top 25 with max 3 per document. With 10 and 2, the ceiling-of-a-number question only got 2 chunks back, because all 10 candidates were from Pattern 11, and the chunk with the actual code got cut.
+
 **Production tradeoff reflection:** If cost wasn't an issue, the main thing I'd look for is a longer context length, since code eats up tokens fast and a bigger window would let a chunk hold a full problem walkthrough. A bigger or code-focused model would probably also match plain-English questions to code chunks better, but it'd be slower or cost money per call if it's an API. Multilingual support doesn't really matter for me since all my sources are in English. Running locally is free and private but slower to re-index, while an API model would likely be more accurate but adds cost, latency, and depending on another company.
 
 ---
