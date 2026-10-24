@@ -18,3 +18,6 @@ chroma/
 
 # macOS
 .DS_Store
+
+# Copyrighted textbook — rebuilt locally by fetch_sources.py, never committed
+documents/textbook-*

@@ -14,6 +14,8 @@
      Example: "Student reviews of CS professors at [university] — useful because official
      course descriptions don't reflect teaching style, exam difficulty, or workload." -->
 
+**Solving data structures and algorithms (DSA) problems in code.** This guide makes the practical side of DSA searchable: problem-solving patterns (two pointers, sliding window, fast & slow pointers, modified binary search, BFS/DFS, dynamic programming), step-by-step walkthroughs, and working implementations with their time and space complexity. DSA is huge and broad, and official material (textbooks, language docs, lecture notes) mostly explains *what* a data structure or algorithm is. It rarely shows *how to recognize which technique a problem needs or how to turn it into working code*. That knowledge is scattered across tutorial sites, blogs and GitHub study notes, so it's hard to find and compare when you're stuck on a problem.
+
 ---
 
 ## Document Sources
@@ -22,18 +24,24 @@
      Be specific: include URLs, subreddit names, forum thread titles, or file names.
      Aim for variety — sources that together cover different subtopics or perspectives. -->
 
+All sources are downloaded and cleaned by `python fetch_sources.py` into `documents/` (86 files).
+
 | # | Source | Type | URL or file path |
 |---|--------|------|-----------------|
-| 1 | | | |
-| 2 | | | |
-| 3 | | | |
-| 4 | | | |
-| 5 | | | |
-| 6 | | | |
-| 7 | | | |
-| 8 | | | |
-| 9 | | | |
-| 10 | | | |
+| 1 | W3Schools DSA tutorial (59 content pages: sorting, searching, linked lists, stacks/queues, hash tables, trees, graphs, time complexity, DP/greedy) | Tutorial site | https://www.w3schools.com/dsa/ → `documents/w3schools-*.md` |
+| 2 | "Several Coding Patterns for Solving DSA Problems during Interviews" (README + 16 pattern files, incl. Pattern 03 Fast & Slow Pointers and Pattern 11 Modified Binary Search) | GitHub study notes | https://github.com/Chanda-Abdul/Several-Coding-Patterns-for-Solving-Data-Structures-and-Algorithms-Problems-during-Interviews → `documents/github-patterns-*.md` |
+| 3 | Tech Interview Handbook: Array cheatsheet for coding interviews | Interview guide | https://www.techinterviewhandbook.org/algorithms/array/ → `documents/techinterviewhandbook-array.md` |
+| 4 | GeeksforGeeks: Big O Notation analysis | Tutorial article | https://www.geeksforgeeks.org/dsa/analysis-algorithms-big-o-analysis/ → `documents/gfg-big-o-analysis.md` |
+| 5 | GeeksforGeeks: Two Pointers Technique | Tutorial article | https://www.geeksforgeeks.org/dsa/two-pointers-technique/ → `documents/gfg-two-pointers.md` |
+| 6 | Built In: Sliding Window Algorithm Explained (12 worked problems) | Blog article | https://builtin.com/data-science/sliding-window-algorithm → `documents/builtin-sliding-window.md` |
+| 7 | GeeksforGeeks: How does Floyd's slow and fast pointers approach work? | Proof / explanation | https://www.geeksforgeeks.org/dsa/how-does-floyds-slow-and-fast-pointers-approach-work/ → `documents/gfg-floyd-fast-slow-pointers.md` |
+| 8 | GeeksforGeeks: N-Base modified binary search | Tutorial article | https://www.geeksforgeeks.org/dsa/n-base-modified-binary-search-algorithm/ → `documents/gfg-n-base-modified-binary-search.md` |
+| 9 | Codecademy: Depth-First Search (DFS) Algorithm Explained | Tutorial article | https://www.codecademy.com/article/depth-first-search-dfs-algorithm → `documents/codecademy-dfs.md` |
+| 10 | Codecademy: Breadth-First Search (BFS) Algorithm Explained | Tutorial article | https://www.codecademy.com/article/breadth-first-search-bfs-algorithm → `documents/codecademy-bfs.md` |
+| 11 | Stack Overflow Blog: The complete beginner's guide to dynamic programming | Blog article | https://stackoverflow.blog/2022/01/31/the-complete-beginners-guide-to-dynamic-programming/ → `documents/stackoverflow-blog-dynamic-programming.md` |
+| 12 | Goodrich, Tamassia & Goldwasser, *Data Structures and Algorithms in Python* (Wiley, 2013) | Textbook (PDF) | https://nibmehub.com/opac-service/pdf/read/Data%20Structures%20and%20Algorithms%20in%20Python.pdf → `documents/textbook-goodrich-dsa-in-python.md` (**local only**: copyrighted, so gitignored and rebuilt by `fetch_sources.py`) |
+
+The NeetCode "Big O Notation" lesson (https://neetcode.io/courses/lessons/big-o-notation) was on the original source list but was dropped. It's a JavaScript-rendered (likely video) lesson with no extractable text, and Big O is already covered by sources 1, 4 and 12.
 
 ---
 
