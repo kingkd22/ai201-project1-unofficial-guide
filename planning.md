@@ -49,11 +49,13 @@ All documents are downloaded and cleaned by `fetch_sources.py` into `documents/`
      numbers fit the structure of your documents.
      A review-heavy corpus warrants different chunking than a long FAQ. -->
 
-**Chunk size:**
+**Chunk size:** About 1,500 characters, with a max of 2,000. I split each document on its headings first, then only break up sections that are longer than 2,000 characters (at paragraph breaks). Tiny sections under 300 characters get merged into the next one.
 
-**Overlap:**
+**Overlap:** 200 characters, but only when a long section gets split. I don't overlap across headings since a new heading usually means a new topic.
 
-**Reasoning:**
+**Reasoning:** My documents are long tutorials and pattern notes, not short reviews. Almost every section is one idea, like one problem or one step of an algorithm, usually laid out as explanation, then code, then the time/space complexity. I measured the web and GitHub docs: the median section is about 815 characters and most are under 1,740, and 90% of code blocks are under about 1,640. So 1,500 characters should fit a whole explanation + code block in one chunk most of the time. I'm also never going to split in the middle of a code block, because half a function isn't useful. Each chunk will start with the document title and section heading (like "Pattern 11: Modified Binary Search > Ceiling of a Number") so a chunk that's mostly code can still match a question about the concept.
+
+The textbook is different since it's a PDF. It's over half the whole corpus and the text came out messy, so before chunking I'll clean it up: cut the table of contents, index, and bibliography, remove the page headers/page numbers, fix words that got hyphenated across lines, split on the numbered section headings (like "11.3 AVL Trees"), and drop the Exercises sections since they're just practice questions with no answers.
 
 ---
 
@@ -65,11 +67,11 @@ All documents are downloaded and cleaned by `fetch_sources.py` into `documents/`
      would you weigh in choosing a different embedding model — context length, multilingual
      support, accuracy on domain-specific text, latency? -->
 
-**Embedding model:**
+**Embedding model:** BAAI/bge-small-en-v1.5 through sentence-transformers, running locally. I picked it over all-MiniLM-L6-v2 because MiniLM only reads the first 256 tokens (around 1,000 characters) of a chunk, which would cut off the end of my 1,500-character chunks, and that's usually where the code and complexity are. bge-small reads up to 512 tokens and is about as fast. I'll store the embeddings in ChromaDB using cosine similarity, with the document title, URL, and section heading saved as metadata so I can cite sources.
 
-**Top-k:**
+**Top-k:** 5. Some of my questions need info from two different pages (like Dijkstra vs Bellman-Ford), so I want more than 2–3 chunks, but not so many that the answer gets buried. Since the textbook is more than half of all chunks, I'll grab the top 10 and only keep 2 chunks max from any one document, so the textbook can't take every spot.
 
-**Production tradeoff reflection:**
+**Production tradeoff reflection:** If cost wasn't an issue, the main thing I'd look for is a longer context length, since code eats up tokens fast and a bigger window would let a chunk hold a full problem walkthrough. A bigger or code-focused model would probably also match plain-English questions to code chunks better, but it'd be slower or cost money per call if it's an API. Multilingual support doesn't really matter for me since all my sources are in English. Running locally is free and private but slower to re-index, while an API model would likely be more accurate but adds cost, latency, and depending on another company.
 
 ---
 
@@ -88,7 +90,7 @@ All documents are downloaded and cleaned by `fetch_sources.py` into `documents/`
 | 4 | What is the difference between memoization and tabulation in dynamic programming? | Memoization is **top-down**: a recursive function starts at the main problem, breaks it into smaller subproblems, and stores results so they aren't recomputed. Tabulation is **bottom-up** and not recursive: it fills a table starting with the most basic subproblems (e.g. F(0), F(1)) and builds up to the final answer. *(W3Schools memoization/tabulation/DP pages; SO blog)* |
 | 5 | Which uses more memory, BFS or DFS, and why? Is one faster? | BFS typically uses more memory because it stores all nodes at the current level (in its queue). DFS only stores nodes along the current path. Their time complexity is the same; which finishes first depends on the problem (DFS for deep search spaces, BFS for shortest-path problems). *(Codecademy DFS/BFS FAQs)* |
 
-These are deliberately spread across different sources and formats: a proof-style article (Q1), a code-heavy JS pattern file (Q2), an answer that combines two pages (Q3), a concept answer repeated across several sources (Q4), and a short FAQ answer (Q5). Q2 and Q3 are the most likely to fail. Q2's answer is split between prose and a code block, and Q3 needs chunks from two different pages.
+I tried to spread these across different sources and formats. Q2 and Q3 are the ones I think are most likely to fail: Q2's answer is split between text and a code block, and Q3 needs chunks from two different pages.
 
 ---
 
@@ -98,9 +100,11 @@ These are deliberately spread across different sources and formats: a proof-styl
      Consider: noisy or inconsistent documents, missing source attribution, off-topic
      retrieval, chunks that split key information across boundaries. -->
 
-1.
+1. **Explanation and code getting split up.** A lot of answers are a paragraph explaining the approach followed by the code. If a chunk boundary lands between them, retrieval might return one without the other. Q2 (ceiling of a number) is the riskiest, since part of the answer is in the text and the "return -1" check is only in the code.
 
-2.
+2. **Answers that need two documents.** Q3 needs both the Dijkstra page and the Bellman-Ford page. If all 5 chunks come from one page, the answer will be incomplete or the model might fill in the rest from its own knowledge. The 2-chunks-per-document limit should help with this.
+
+3. **The textbook adding noise.** It's huge and the PDF text is messy (lost code indentation, page headers, broken words). Leftover junk could get retrieved instead of the cleaner web pages. The cleanup step and the per-document limit are meant to handle this, but if it still happens I'll document it as a failure case.
 
 ---
 
@@ -111,6 +115,41 @@ These are deliberately spread across different sources and formats: a proof-styl
      Label each stage with the tool or library you're using.
      You can use ASCII art, a Mermaid diagram, or embed a sketch as an image.
      You'll use this diagram as context when prompting AI tools to implement each stage. -->
+
+```
+ ┌──────────────────────────────────────────────────────────────────────────┐
+ │ 1. DOCUMENT INGESTION            fetch_sources.py                        │
+ │    requests + BeautifulSoup (HTML), raw GitHub Markdown, pdfplumber (PDF)│
+ │    → documents/*.md  (86 files, Title/Source header + cleaned Markdown)  │
+ └──────────────────────────────────┬───────────────────────────────────────┘
+                                    ▼
+ ┌──────────────────────────────────────────────────────────────────────────┐
+ │ 2. CHUNKING                      ingest.py  (plain Python + re)          │
+ │    textbook cleaning → split on headings → merge <300 / split >2,000     │
+ │    ~1,500-char chunks, 200 overlap, code fences kept whole,              │
+ │    "Title > Heading" prefix + metadata {source, url, heading}            │
+ └──────────────────────────────────┬───────────────────────────────────────┘
+                                    ▼
+ ┌──────────────────────────────────────────────────────────────────────────┐
+ │ 3. EMBEDDING + VECTOR STORE      index.py                                │
+ │    sentence-transformers  BAAI/bge-small-en-v1.5 (384-d, normalized)     │
+ │    → ChromaDB persistent collection (cosine), stored in chroma_db/       │
+ └──────────────────────────────────┬───────────────────────────────────────┘
+                                    ▼
+ ┌──────────────────────────────────────────────────────────────────────────┐
+ │ 4. RETRIEVAL                     rag.py  retrieve(query)                 │
+ │    embed query (bge prefix) → 10 nearest → max 2 per document → top 5    │
+ └──────────────────────────────────┬───────────────────────────────────────┘
+                                    ▼
+ ┌──────────────────────────────────────────────────────────────────────────┐
+ │ 5. GENERATION                    rag.py  generate_answer(query)          │
+ │    Groq API  openai/gpt-oss-20b, temperature 0.2                         │
+ │    grounded system prompt + numbered context chunks → answer + [n] cites │
+ │    + "Sources:" list (title + URL); refuses when context lacks answer    │
+ └──────────────────────────────────┬───────────────────────────────────────┘
+                                    ▼
+                    QUERY INTERFACE  app.py  (Gradio web UI)
+```
 
 ---
 
@@ -126,8 +165,8 @@ These are deliberately spread across different sources and formats: a proof-styl
      "I'll give Claude my Chunking Strategy section and ask it to implement chunk_text()
      with my specified chunk size and overlap" is a plan. -->
 
-**Milestone 3 — Ingestion and chunking:**
+**Milestone 3 — Ingestion and chunking:** I'll give Claude my Chunking Strategy section, the architecture diagram, and a couple of sample files from documents/, and ask it to write ingest.py with load_documents(), clean_textbook(), and chunk_document(). To check it, I'll print the chunk count and sizes, make sure nothing is over 2,000 characters, check that no code block got cut in half, and read through a few random chunks myself.
 
-**Milestone 4 — Embedding and retrieval:**
+**Milestone 4 — Embedding and retrieval:** I'll give Claude my Retrieval Approach section and ask it to write build_index() (embed with bge-small and store in ChromaDB) and retrieve(query) with the top-5 / max-2-per-document rule. Before adding any generation, I'll run my 5 test questions through retrieval only and check that the right source shows up in the results for each one.
 
-**Milestone 5 — Generation and interface:**
+**Milestone 5 — Generation and interface:** I'll give Claude the grounding requirements (only answer from the retrieved chunks, always cite sources, say so if the answer isn't there) and ask it to write generate_answer() using openai/gpt-oss-20b on Groq and a simple Gradio app. I'll check that every answer lists its sources, that an off-topic question gets refused, and compare the answers to my expected answers.
