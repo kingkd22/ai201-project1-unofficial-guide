@@ -267,9 +267,26 @@ Relevance explanation: The answer is spread across W3Schools pages, and retrieva
      Do not just say "I told it to use the documents" — show the actual instruction or explain
      the mechanism. -->
 
-**System prompt grounding instruction:**
+**System prompt grounding instruction:** The system prompt in `rag.py` (sent to `openai/gpt-oss-20b` on Groq, temperature 0.2):
 
-**How source attribution is surfaced in the response:**
+```text
+You are the DSA Unofficial Guide, an assistant that answers questions about data structures and algorithms using ONLY the numbered source excerpts provided in the user message.
+
+Rules:
+1. Use only facts, steps, code, and complexities that appear in the excerpts. Do not add anything from your own knowledge, even if you are confident it is true.
+2. Cite every claim with the excerpt number(s) it came from, like [1] or [2][3]. Every sentence that states a fact needs a citation.
+3. If the excerpts do not contain the answer, reply with exactly: "I don't have enough information in my sources to answer that." and nothing else.
+4. If the excerpts only answer part of the question, answer that part and say plainly which part the sources do not cover.
+5. If you show code, copy it from an excerpt and label its language (Python or JavaScript) as it appears in the source.
+6. Be concise: a short explanation, then steps or code only if they help.
+```
+
+The prompt isn't the only thing enforcing grounding. There are also structural choices in `rag.ask()`:
+- **Relevance filter before the LLM.** Retrieved chunks with a cosine distance above 0.38 are dropped. If nothing is left, the system returns the refusal *without calling the LLM at all*, so there's no context for it to make things up from. I picked 0.38 from testing: real DSA questions had a best-chunk distance of 0.08–0.32, and off-topic ones (laptops, the World Cup, sourdough bread) were 0.42–0.50.
+- **Numbered, labelled context.** Each chunk goes into the user message as `[n] Source: <title>`, `URL: <url>` plus the chunk text (which already starts with `Title > Section heading`), so the model can cite by number.
+- **Top-5 with a per-document cap** (max 3 chunks per document, picked from the 25 nearest), so the context isn't five near-copies from one source.
+
+**How source attribution is surfaced in the response:** The model cites claims inline as `[1]`, `[2]`, and so on. The source list is **not** written by the LLM. After generation, `rag.ask()` pulls the `[n]` numbers out of the answer with a regex and builds the "Sources" list in code from those chunks' stored metadata (document title, section heading, URL). Attribution therefore always points at chunks that really were retrieved, and the model can't invent a source. If the model forgets to cite anything, the list falls back to every chunk it was given. A refusal shows no sources.
 
 ---
 
@@ -281,29 +298,91 @@ Relevance explanation: The answer is spread across W3Schools pages, and retrieva
 
 **Grounded response 1**
 
-Query:
+Query: How do you modify binary search to find the ceiling of a key in a sorted array (smallest element ≥ key)?
 
 Response:
 
+> To find the ceiling (the smallest element ≥ key) you can use a **modified binary search** that keeps track of the best candidate while shrinking the search window.
+>
+> **Key idea**  
+> * If the key is larger than the last element, no ceiling exists → return `-1`.  
+> * While searching, when `arr[mid] > key` the ceiling must lie in the left half, so move `end = mid‑1`.  
+> * When `arr[mid] < key` the ceiling must be to the right, so move `start = mid+1`.  
+> * If you hit the key exactly, that index is the ceiling.  
+> * When the loop ends (`start > end`), `start` points to the first element that is ≥ key.
+>
+> **Code (JavaScript)**
+>
+> ```js
+> function searchCeilingOfNumber(arr, key) {
+>   const n = arr.length;
+>   let start = 0;
+>   let end = n - 1;
+>
+>   if (key > arr[end]) return -1;          // no ceiling
+>
+>   while (start <= end) {
+>     let mid = Math.floor(start + (end - start) / 2);
+>
+>     if (arr[mid] > key) {
+>       end = mid - 1;                      // ceiling in left half
+>     } else if (arr[mid] < key) {
+>       start = mid + 1;                    // ceiling in right half
+>     } else {
+>       return mid;                         // exact match
+>     }
+>   }
+>
+>   return start;                           // smallest element ≥ key
+> }
+> ```
+>
+> **Complexity**  
+> *Time*: `O(log N)` – each iteration halves the search range.  
+> *Space*: `O(1)` – only a few variables are used.  
+>
+> This is the standard modification of binary search for the ceiling problem. [3] provides the full implementation and explanation.
+
 Source attribution:
+- [3] Pattern 11: Modified Binary Search > Ceiling of a Number (medium)  (https://github.com/Chanda-Abdul/Several-Coding-Patterns-for-Solving-Data-Structures-and-Algorithms-Problems-during-Interviews/blob/main/%E2%9C%85%20%20Pattern%2011%3A%20Modified%20Binary%20Search.md)
 
 ---
 
 **Grounded response 2**
 
-Query:
+Query: When should I use the two pointers technique?
 
 Response:
 
+> Use the two‑pointer technique when:
+>
+> * The data structure is **sorted (or can be sorted)** and you need to find a pair, triplet, or sub‑array that satisfies a condition.  
+>   * Example: “find two numbers in a sorted array that add up to a target” [2].  
+> * The problem asks for **two elements, sub‑arrays, or ranges** rather than a single element.  
+>   * Example: “longest substring without repeating characters”, “maximum consecutive ones”, “check if a string is a palindrome” [2].  
+> * You need to maintain a **sliding window** that grows or shrinks based on a condition.  
+>   * Example: “find smallest subarray with sum ≥ K”, “move all zeros to the end while maintaining order” [2].  
+> * You are working with a **linked list** and want to detect cycles, find the middle node, or check for a palindrome using slow‑fast pointers.  
+>   * Example: Floyd’s Cycle Detection Algorithm (Tortoise and Hare) [2].
+>
+> In these scenarios the two‑pointer approach gives an **O(n)** time solution with **O(1)** extra space, as shown in the typical implementation for the two‑sum problem [3][5].
+
 Source attribution:
+- [2] Two Pointers Technique - GeeksforGeeks > When to Use Two Pointers:  (https://www.geeksforgeeks.org/dsa/two-pointers-technique/)
+- [3] Two Pointers Technique - GeeksforGeeks > Two-Pointer Technique - O(n) time and O(1) space  (https://www.geeksforgeeks.org/dsa/two-pointers-technique/)
+- [5] Pattern 2: Two Pointers > 🌴 Pair with Target Sum aka "Two Sum" (easy) > Two pointer Solution  (https://github.com/Chanda-Abdul/Several-Coding-Patterns-for-Solving-Data-Structures-and-Algorithms-Problems-during-Interviews/blob/main/%E2%9C%85%20%20Pattern%2002%3A%20Two%20Pointers.md)
 
 ---
 
 **Out-of-scope query**
 
-Query:
+Query: What's the best laptop for programming?
 
 System response (refusal):
+
+> I don't have enough information in my sources to answer that.
+
+(No sources are shown. The closest chunk had a distance of 0.452, which is above the 0.38 cutoff, so the LLM was never called.)
 
 ---
 
@@ -312,9 +391,14 @@ System response (refusal):
 <!-- Describe your query interface: what are the input fields, what does the output look like?
      Then provide a complete sample interaction transcript showing a real exchange. -->
 
-**Input fields:**
+**Input fields:** A Gradio web app (`python app.py`, then open http://localhost:7860) with one **"Your question"** text box, an **Ask** button (pressing Enter also works), and five clickable **example questions** under the box that fill it in.
 
-**Output format:**
+**Output format:** Three parts, top to bottom:
+1. **Answer.** The grounded answer as Markdown, with inline `[n]` citations. Code is shown in labelled code blocks.
+2. **Sources.** A bulleted list of the cited chunks as `[n] Document title > Section heading (URL)`, built in code from retrieval metadata.
+3. **Retrieved chunks** (collapsed by default). Each retrieved chunk's ID, its distance score, and the first 600 characters of its text, so you can check the answer against what was actually retrieved.
+
+The same pipeline also works from the command line: `python rag.py "your question"`.
 
 ---
 
@@ -323,9 +407,25 @@ System response (refusal):
 <!-- Show a complete query → response exchange as it actually appears in your interface.
      Must be text — not a screenshot. -->
 
-> **User:** 
+> **User:** What is the difference between memoization and tabulation in dynamic programming?
 
-> **System:** 
+> **System:**
+> Memoization and tabulation are two ways to reuse solutions to overlapping sub‑problems in dynamic programming, but they differ in how and when the sub‑solutions are stored and used.
+>
+> | Feature | Memoization | Tabulation |
+> |---------|-------------|------------|
+> | **Approach** | Top‑down: start with the main problem and recursively break it into smaller sub‑problems. | Bottom‑up: start with the simplest sub‑problems and iteratively build up to the main problem. |
+> | **Recursion** | Uses recursion; the function calls itself for sub‑problems. | Does not use recursion; uses an explicit table (array or multi‑dimensional array). |
+> | **Storage** | Stores results in a map or cache as they are computed. | Stores results in a pre‑allocated table that is filled iteratively. |
+> | **When a sub‑problem is solved** | Only once, when it is first needed during recursion. | Only once, when the iteration reaches that sub‑problem. |
+> | **Typical implementation** | Recursive function with a lookup before computing. | Iterative loops that fill a table. |
+>
+> These differences are summarized in the sources: memoization is described as a “top‑down” technique that stores results during recursion [4], while tabulation is a “bottom‑up” technique that fills a table of sub‑problem solutions without recursion [2][5].
+>
+> **Sources**
+> - [2] DSA Dynamic Programming > Dynamic Programming > Techniques Used in Dynamic Programming  (https://www.w3schools.com/dsa/dsa_ref_dynamic_programming.php)
+> - [4] DSA Memoization > Memoization > Memoization  (https://www.w3schools.com/dsa/dsa_ref_memoization.php)
+> - [5] Pattern 15: 0-1 Knapsack (Dynamic Programming) > Dynamic Programming Methods > Bottom-up with Tabulation  (https://github.com/Chanda-Abdul/Several-Coding-Patterns-for-Solving-Data-Structures-and-Algorithms-Problems-during-Interviews/blob/main/%E2%9C%85%20Pattern%2015%3A%200-1%20Knapsack%20%28Dynamic%20Programming%29.md)
 
 ---
 

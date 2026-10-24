@@ -142,7 +142,8 @@ I tried to spread these across different sources and formats. Q2 and Q3 are the 
                                     ▼
  ┌──────────────────────────────────────────────────────────────────────────┐
  │ 4. RETRIEVAL                     rag.py  retrieve(query)                 │
- │    embed query (bge prefix) → 10 nearest → max 2 per document → top 5    │
+ │    embed query (bge prefix) → 25 nearest → max 3 per document → top 5    │
+ │    drop chunks with distance > 0.38 (refuse if none are left)            │
  └──────────────────────────────────┬───────────────────────────────────────┘
                                     ▼
  ┌──────────────────────────────────────────────────────────────────────────┐
