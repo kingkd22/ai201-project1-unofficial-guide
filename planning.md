@@ -39,15 +39,6 @@ All documents are downloaded and cleaned by `fetch_sources.py` into `documents/`
 | 11 | Stack Overflow Blog: Beginner's guide to dynamic programming | DP as "a way of thinking", memoization illustrated with Fibonacci. | https://stackoverflow.blog/2022/01/31/the-complete-beginners-guide-to-dynamic-programming/ |
 | 12 | Goodrich, Tamassia & Goldwasser, *Data Structures and Algorithms in Python* (Wiley, 2013) | Full 770-page textbook (PDF, text extracted with pdfplumber). **Local only.** It is copyrighted, so it's gitignored and never committed; run `fetch_sources.py` to rebuild it. | https://nibmehub.com/opac-service/pdf/read/Data%20Structures%20and%20Algorithms%20in%20Python.pdf → `documents/textbook-goodrich-dsa-in-python.md` |
 
-**Dropped:** NeetCode "Big O Notation" lesson (https://neetcode.io/courses/lessons/big-o-notation). The page is a JavaScript app (likely a video lesson), so it has no text to extract. Big O is already covered by sources 1 (time complexity pages), 4 and 12.
-
-**What skimming the documents showed (input for Milestone 2 chunking):**
-- **Mostly long-form, heading-structured guides, not short reviews.** Every web source converts to Markdown with clear `##`/`###` sections. A section is usually one idea: one problem, one algorithm step, or one FAQ answer. Splitting on headings first, then by size, should keep ideas intact.
-- **Key facts are spread across paragraphs + code.** A typical unit is "problem statement → approach paragraph(s) → code block → complexity line". Chunks that cut a code block in half, or separate an explanation from its code, will hurt answers. Code blocks should never be split.
-- **Very uneven source sizes.** The textbook is ~1.63M chars (~56% of the corpus) and GitHub Pattern 15 (DP) alone is ~250k. Small articles (SO blog 8k, TIH 7k) could get drowned out in retrieval. Per-source metadata is needed so answers can cite them.
-- **Textbook extraction is lower quality.** pdfplumber drops code indentation, keeps page headers/footers ("3.3. Asymptotic Analysis 129") and hyphenates words at line breaks ("excep-\ntional"). It needs extra cleaning.
-- **Languages differ.** W3Schools/Built In/Codecademy/textbook code is Python; the GitHub patterns are JavaScript.
-- **Overlapping coverage is intentional.** Sliding window, two pointers, fast/slow pointers and binary search each appear in 2–3 sources with different explanations (conceptual, proof, worked problems).
 
 ---
 
