@@ -104,6 +104,8 @@ JUNK_SELECTORS = [
 # Everything from one of these headings to the end of the page is link lists or ads.
 TRAILING_SECTIONS = re.compile(
     r"\n#+ (Related articles|Learn more on Codecademy|Recommended courses)\b.*", re.S)
+# Codecademy's author bio box at the end of the article body.
+AUTHOR_BIO = re.compile(r"\n *Codecademy Team *\n.*?Meet the full team\s*", re.S)
 
 
 def to_markdown(node):
@@ -149,7 +151,7 @@ def to_markdown(node):
 
 def tidy(text):
     """Collapse whitespace outside code fences and drop leftover boilerplate lines."""
-    text = TRAILING_SECTIONS.sub("\n", text.replace("​", ""))
+    text = AUTHOR_BIO.sub("\n", TRAILING_SECTIONS.sub("\n", text.replace("​", "")))
     parts = re.split(r"(```.*?```)", text, flags=re.S)
     for i in range(0, len(parts), 2):  # even indexes are prose, odd are code fences
         p = re.sub(r"[ \t\xa0]+", " ", parts[i])

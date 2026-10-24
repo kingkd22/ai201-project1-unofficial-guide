@@ -54,13 +54,30 @@ The NeetCode "Big O Notation" lesson (https://neetcode.io/courses/lessons/big-o-
      - Any preprocessing you did before chunking (e.g., stripping HTML, removing headers)
      - What your final chunk count was across all documents -->
 
-**Chunk size:**
+**Chunk size:** About 1,500 characters (target), with a hard max of 2,000 characters of body text. I split on headings first and only break up sections that are too big. Final chunks have a median size of 1,514 characters.
 
-**Overlap:**
+**Overlap:** 200 characters, but only between chunks cut from the same long section (taken from the end of the previous prose block, cut at a word boundary). There's no overlap across headings, since a new heading is a new topic, and code is never repeated as overlap.
 
-**Why these choices fit your documents:**
+**Why these choices fit your documents:** My documents are long tutorials and pattern notes, not short reviews. Almost every section is one idea (one problem, one algorithm step, one FAQ answer) laid out as explanation → code → complexity. I measured the web/GitHub docs before picking the size: the median section is ~815 characters, 75% are under 1,740, and 90% of code blocks are under ~1,640. So ~1,500 characters usually keeps a whole explanation and its code together. The rules in `ingest.py`:
+- Split each document on its Markdown headings (ignoring `#` lines inside code fences, which are code comments).
+- Sections under 300 characters get merged into the next section, so I don't get fragments like a lone heading.
+- A subsection stays with its parent when both fit in 1,500 characters (for example, a problem statement and its `#### Solution`).
+- Long sections are packed block by block (paragraphs and code blocks) up to ~1,500 characters. Code blocks are never split unless one block alone is over 2,000 characters, in which case it's split at blank lines and each piece is re-wrapped in its own fence.
+- A short leftover at the end of a section (like a lone "time complexity is O(n)" line) is folded back into the previous chunk.
+- Every chunk starts with `Document title > Section heading`, so a chunk that's mostly code still matches a question about the concept. Each chunk also stores `doc_id`, `title`, `url`, `heading` and `chunk_index` as metadata for citations.
 
-**Final chunk count:**
+**Preprocessing (the ingestion pipeline):** `fetch_sources.py` downloads every source and cleans it before chunking:
+- **HTML pages:** keeps only the main article element and removes nav, headers/footers, ads, share buttons, scripts, the interactive W3Schools widgets, Codecademy course cards and author bio, and "Related articles"/"Recommended courses" link lists. The rest is converted to Markdown that keeps headings, lists, tables and code blocks.
+- **GitHub:** the raw Markdown is downloaded, with images and leftover HTML tags removed.
+- **Textbook:** text is extracted with pdfplumber (`x_tolerance=1`, because the default glued words together). `ingest.py` then cuts the table of contents, bibliography and index, strips the running page headers/page numbers and `(cid:NN)` glyph codes, removes figure-label lines, re-joins words hyphenated across lines, turns numbered sections (`3.3.1 The "Big-Oh" Notation`) into headings, and drops the Exercises sections (practice questions with no answers).
+
+I checked the output after chunking:
+- no chunk body is over 2,000 characters
+- every chunk has balanced code fences
+- no HTML entities or leftover textbook headers
+- no empty chunks
+
+**Final chunk count:** 2,047 chunks from 86 documents: 933 textbook, 602 GitHub patterns, 395 W3Schools, 44 Built In, 36 GeeksforGeeks, 20 Codecademy, 9 Tech Interview Handbook, 8 Stack Overflow blog. That's slightly above the ~2,000 the assignment uses as a "too small" warning, but that guideline assumes about 10 documents. My corpus is 86 documents and ~2.9M characters, and the median chunk is still ~1,500 characters.
 
 ---
 
@@ -70,13 +87,111 @@ The NeetCode "Big O Notation" lesson (https://neetcode.io/courses/lessons/big-o-
      For each chunk, note which source document it came from.
      These must be actual text — not screenshots. -->
 
-| # | Source document | Chunk text |
-|---|----------------|------------|
-| 1 | | |
-| 2 | | |
-| 3 | | |
-| 4 | | |
-| 5 | | |
+**Chunk 1** (`github-patterns-p11-modified-binary-search-0003`), from `github-patterns-p11-modified-binary-search.md` (GitHub Pattern 11: Modified Binary Search)
+
+````text
+Pattern 11: Modified Binary Search > Ceiling of a Number (medium)
+
+## Ceiling of a Number (medium)
+
+> Given an array of numbers sorted in an ascending order, find the ceiling of a given number `key`. The ceiling of the `key` will be the smallest element in the given array greater than or equal to the `key`.
+>
+> Write a function to return the index of the ceiling of the `key`. If there isn’t any ceiling return `-1`.
+
+This problem follows the Binary Search pattern. Since Binary Search helps us find a number in a sorted array efficiently, we can use a modified version of the Binary Search to find the ceiling of a number.
+
+We can use a similar approach as discussed in Order-agnostic Binary Search. We will try to search for the `key` in the given array. If we find the `key`, we return its `index` as the ceiling. If we can’t find the `key`, the next big number will be pointed out by the index `start`.
+
+Since we are always adjusting our range to find the `key`, when we exit the loop, the start of our range will point to the smallest number greater than the `key` as shown in the above picture.
+
+We can add a check in the beginning to see if the `key` is bigger than the biggest number in the input array. If so, we can return `-1`.
+````
+
+**Chunk 2** (`gfg-floyd-fast-slow-pointers-0002`), from `gfg-floyd-fast-slow-pointers.md` (GeeksforGeeks: Floyd's slow and fast pointers)
+
+````text
+How does Floyd's slow and fast pointers approach work? - GeeksforGeeks
+
+- m = (i-1)*n + (n-k), Here (i-1) * n covers the complete cycles before the final partial cycle, and n - k covers the remaining distance to the meeting point.
+
+Finding the Start of the Cycle
+
+Once the slow and fast pointers meet within the loop, the next step is to identify the start of the cycle. To do this, we reset one of the pointers - let’s say the slow pointer to the head of the linked list. The other pointer, the fast pointer, remains at the point where the two pointers initially met. Both pointers are then moved one node at a time. As they traverse the list, the pointer that was reset to the head will cover the distance m to the start of the loop. Since the total distance m + k covered by the slow pointer is a multiple of the cycle length n, both pointers will eventually converge at the start of the cycle. This simultaneous movement ensures that the pointer starting from the head meets the pointer at the start of the cycle, there by successfully identifying the beginning of the loop.
+
+Floyd’s Cycle-Finding Algorithm is efficient in detecting loops in a linked list with a time complexity O(n) and space complexity of O(1).
+
+Please refer to Find Starting node of cycle for more details.
+````
+
+**Chunk 3** (`w3schools-algo-graphs-dijkstra-0001`), from `w3schools-algo-graphs-dijkstra.md` (W3Schools: Dijkstra's Algorithm)
+
+````text
+DSA Dijkstra's Algorithm > Dijkstra's Algorithm
+
+## Dijkstra's Algorithm
+
+Dijkstra's algorithm finds the shortest path from one vertex to all other vertices.
+
+It does so by repeatedly selecting the nearest unvisited vertex and calculating the distance to all the unvisited neighboring vertices.
+
+Dijkstra's algorithm is often considered to be the most straightforward algorithm for solving the shortest path problem.
+
+Dijkstra's algorithm is used for solving single-source shortest path problems for directed or undirected paths. Single-source means that one vertex is chosen to be the start, and the algorithm will find the shortest path from that vertex to all other vertices.
+
+Dijkstra's algorithm does not work for graphs with negative edges. For graphs with negative edges, the Bellman-Ford algorithm that is described on the next page, can be used instead.
+
+To find the shortest path, Dijkstra's algorithm needs to know which vertex is the source, it needs a way to mark vertices as visited, and it needs an overview of the current shortest distance to each vertex as it works its way through the graph, updating these distances when a shorter distance is found.
+
+How it works:
+
+- Set initial distances for all vertices: 0 for the source vertex, and infinity for all the other.
+
+- Choose the unvisited vertex with the shortest distance from the start to be the current vertex. So the algorithm will always start with the source as the current vertex.
+
+- For each of the current vertex's unvisited neighbor vertices, calculate the distance from the source and update the distance if the new, calculated, distance is lower.
+````
+
+**Chunk 4** (`codecademy-dfs-0009`), from `codecademy-dfs.md` (Codecademy: Depth-First Search)
+
+````text
+Depth-First Search (DFS) Algorithm Explained | Codecademy > Depth-First Search (DFS) Algorithm Explained > Frequently asked questions > 4. Which is faster DFS or BFS?
+
+### 3. What is a DFS used for?
+
+Depth-First Search is used for pathfinding, cycle detection, solving puzzles, topological sorting, and exploring graph connectivity.
+
+### 4. Which is faster DFS or BFS?
+
+In terms of time complexity, both Depth-First Search and Breadth-First Search are equal. Speed depends on the problem—DFS may find solutions faster in deep search spaces, while BFS may be quicker for shortest-path problems.
+
+### 5. Which uses more memory, BFS or DFS?
+
+Typically, Breadth-First Search uses more memory because it stores all nodes at the current level, while Depth-First Search only stores nodes along the current path.
+````
+
+**Chunk 5** (`textbook-goodrich-dsa-in-python-0188`), from `textbook-goodrich-dsa-in-python.md` (Goodrich et al. textbook, section 3.3.1)
+
+````text
+Data Structures and Algorithms in Python > 3.3 Asymptotic Analysis > 3.3.1 The “Big-Oh” Notation
+
+Even with this interpretation,
+there is considerable freedom in how we can use arithmetic operations with the big-
+Oh notation, and with this freedom comes a certain amount of responsibility.
+
+Characterizing Running Times Using the Big-Oh Notation
+The big-Oh notation is used widely to characterize running times and space bounds
+in terms of some parameter n, which varies from problem to problem, but is always
+defined as a chosen measure of the “size” of the problem. For example, if we
+are interested in finding the largest element in a sequence, as with the find max
+algorithm, we should let n denote the number of elements in that collection. Using
+the big-Oh notation, we can write the following mathematically precise statement
+on the running time of algorithm find max (Code Fragment 3.1) for any computer.
+Proposition 3.7: Thealgorithm, find max,forcomputingthemaximumelement
+ofa listof n numbers, runs in O(n) time.
+Justification: The initialization before the loop begins requires only a constant
+number of primitive operations. Each iteration of the loop also requires only a constant number of primitive operations, and the loop executes n times. Therefore,
+we account for the number of primitive operations being c  + c  · n for appropriate
+````
 
 ---
 

@@ -223,9 +223,3 @@ In terms of time complexity, both Depth-First Search and Breadth-First Search ar
 ### 5. Which uses more memory, BFS or DFS?
 
 Typically, Breadth-First Search uses more memory because it stores all nodes at the current level, while Depth-First Search only stores nodes along the current path.
-
-Codecademy Team
-
-'The Codecademy Team, composed of experienced educators and tech experts, is dedicated to making tech skills accessible to all. We empower learners worldwide with expert-reviewed content that develops and enhances the technical skills needed to advance and succeed in their careers.'
-
-Meet the full team

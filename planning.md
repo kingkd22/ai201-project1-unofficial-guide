@@ -51,6 +51,8 @@ All documents are downloaded and cleaned by `fetch_sources.py` into `documents/`
 
 **Chunk size:** About 1,500 characters, with a max of 2,000. I split each document on its headings first, then only break up sections that are longer than 2,000 characters (at paragraph breaks). Tiny sections under 300 characters get merged into the next one.
 
+*Update after building it (Milestone 3):* I added two rules once I saw the real chunks. A subsection stays with its parent if both fit in 1,500 characters, because otherwise problems got split from their "Solution" subsections. And a short leftover at the end of a section (like a lone "time complexity is O(n)" line) gets folded back into the previous chunk. Size and overlap numbers didn't change. Final count: 2,047 chunks.
+
 **Overlap:** 200 characters, but only when a long section gets split. I don't overlap across headings since a new heading usually means a new topic.
 
 **Reasoning:** My documents are long tutorials and pattern notes, not short reviews. Almost every section is one idea, like one problem or one step of an algorithm, usually laid out as explanation, then code, then the time/space complexity. I measured the web and GitHub docs: the median section is about 815 characters and most are under 1,740, and 90% of code blocks are under about 1,640. So 1,500 characters should fit a whole explanation + code block in one chunk most of the time. I'm also never going to split in the middle of a code block, because half a function isn't useful. Each chunk will start with the document title and section heading (like "Pattern 11: Modified Binary Search > Ceiling of a Number") so a chunk that's mostly code can still match a question about the concept.

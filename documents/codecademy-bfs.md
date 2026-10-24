@@ -167,9 +167,3 @@ We should use breadth-first search when we need to find the shortest path, explo
 ### 5. What’s the difference between breadth-first search and Dijkstra’s algorithm?
 
 While breadth-first search works on unweighted graphs, Dijkstra’s algorithm is used for weighted graphs where edge costs vary. BFS can be seen as a simplified version of Dijkstra’s algorithm with equal weights.
-
-Codecademy Team
-
-'The Codecademy Team, composed of experienced educators and tech experts, is dedicated to making tech skills accessible to all. We empower learners worldwide with expert-reviewed content that develops and enhances the technical skills needed to advance and succeed in their careers.'
-
-Meet the full team
