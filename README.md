@@ -7,6 +7,28 @@
 
 ---
 
+## How to Run
+
+```bash
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env            # then add your GROQ_API_KEY
+python fetch_sources.py         # download + clean the 86 documents into documents/ (rebuilds the local-only textbook)
+python ingest.py                # optional: print chunk stats and 5 sample chunks
+python index.py                 # embed the 2,047 chunks into chroma_db/
+python app.py                   # open http://localhost:7860  (or: python rag.py "your question")
+```
+
+| File | Pipeline stage |
+|------|----------------|
+| `fetch_sources.py` | Ingestion: download and clean HTML, GitHub Markdown and the PDF into `documents/*.md` |
+| `ingest.py` | Chunking: textbook cleanup and heading-aware chunks with metadata |
+| `index.py` | Embedding + vector store: bge-small-en-v1.5 into ChromaDB |
+| `rag.py` | Retrieval + grounded generation: `retrieve()` and `ask()` with gpt-oss-20b on Groq |
+| `app.py` | Query interface: Gradio web UI |
+
+---
+
 ## Domain
 
 <!-- What topic or category of knowledge does your system cover?
@@ -437,11 +459,13 @@ The same pipeline also works from the command line: `python rag.py "your questio
 
 | # | Question | Expected answer | System response (summarized) | Retrieval quality | Response accuracy |
 |---|----------|-----------------|------------------------------|-------------------|-------------------|
-| 1 | | | | | |
-| 2 | | | | | |
-| 3 | | | | | |
-| 4 | | | | | |
-| 5 | | | | | |
+| 1 | In Floyd's fast and slow pointer algorithm, once the two pointers meet, how do you find the node where the cycle starts, and what are the time and space complexities? | Reset one pointer to the head, leave the other at the meeting point, move both one node at a time; where they meet is the cycle start. O(n) time, O(1) space. | Correct method and complexities, cited to GfG [1] and GitHub Pattern 3 [5]. But it also printed a JavaScript `findCycleStart` function that is **not in any source**. The real `findCycleStart` in Pattern 3 uses a different method (count the cycle length first). The answer then said "This code follows the method described in the source." | Relevant (top 3 = the GfG Floyd article at distances 0.08–0.14; also Pattern 3 cycle chunks) | Partially accurate |
+| 2 | How do you modify binary search to find the ceiling of a key in a sorted array? | Return -1 if key > last element; otherwise binary search; return the index if found; when the loop ends, `start` is the ceiling. | All of the expected points, plus the JavaScript code, which matches the Pattern 11 source exactly (same variable names, same -1 check, `return start`). O(log N) time / O(1) space. Cited [3]. | Relevant (Pattern 11 explanation + its code chunk at 0.08–0.14) | Accurate |
+| 3 | Why can't Dijkstra's algorithm be used with negative edge weights, what should you use instead, and what happens with a negative cycle? | Dijkstra only works with non-negative edges; use Bellman-Ford; with a negative cycle no shortest path exists (you can always loop again), and Bellman-Ford can detect it. | Use Bellman-Ford [1]; a negative cycle means no shortest path and Bellman-Ford can detect it [2][3]. All correct and cited. But the "why" ("it may relax an edge that later leads to a shorter path that was already finalised") is cited to [1], and [1] doesn't say that. It came from the model's own knowledge. | Relevant (three W3Schools shortest-path / Bellman-Ford chunks; the Dijkstra page's own "does not work for negative edges" chunk was not in the top 5) | Partially accurate |
+| 4 | What is the difference between memoization and tabulation? | Memoization = top-down, recursive, stores subproblem results; tabulation = bottom-up, not recursive, fills a table starting from the base cases. | A comparison table: top-down + recursion + cache vs. bottom-up + iterative table, cited to the W3Schools DP/memoization pages and GitHub Pattern 15. | Relevant (W3Schools tabulation, DP and memoization pages) | Accurate |
+| 5 | Which uses more memory, BFS or DFS, and why? Is one faster? | BFS uses more memory (it stores a whole level) vs. DFS (only the current path); same time complexity; which is faster depends on the problem. | Exactly that, with direct quotes from Codecademy [1][2] and the textbook's O(n + m) BFS bound [4]. One quote shows a PDF artifact ("ABFStraversal" = "A BFS traversal"). | Relevant (Codecademy DFS/BFS FAQ chunks + textbook 14.3.3) | Accurate |
+
+Overall: retrieval found the right source for all 5 questions (best-chunk distance 0.08–0.17). Generation was fully accurate on 3 of 5. Both partial answers are the same kind of problem: the model added something that wasn't in the retrieved text.
 
 **Retrieval quality:** Relevant / Partially relevant / Off-target  
 **Response accuracy:** Accurate / Partially accurate / Inaccurate
@@ -461,13 +485,16 @@ The same pipeline also works from the command line: `python rag.py "your questio
      "The embedding model treated the professor's nickname as out-of-vocabulary and returned
      results from an unrelated review" is an explanation. -->
 
-**Question that failed:**
+**Question that failed:** Q1: "In Floyd's fast and slow pointer algorithm, once the two pointers meet inside the loop, how do you find the node where the cycle starts, and what are the time and space complexities?"
 
-**What the system returned:**
+**What the system returned:** The explanation was right (reset one pointer to the head, move both one step at a time, O(n) time, O(1) space, cited to GfG [1] and Pattern 3 [5]). Then it added a "*Example code (JavaScript)*" block: a `findCycleStart(head)` that finds the meeting point, resets `slow = head`, and walks both pointers until they meet. It closed with "This code follows the method described in the source and achieves the stated complexities." That function doesn't exist in my documents. The only `findCycleStart` in the corpus (GitHub Pattern 3, chunk `github-patterns-p03-fast-slow-pointers-0005`, which *was* retrieved) uses a different algorithm: it calculates the cycle length, moves `pointer2` ahead by that many nodes, then moves both pointers together.
 
-**Root cause (tied to a specific pipeline stage):**
+**Root cause (tied to a specific pipeline stage):** This is a **generation-stage grounding failure**, not a retrieval failure. Retrieval returned exactly the right chunks. The problem is that the method the question asks about (reset to head) is only explained **in prose** in the GfG article, which has no code at all. The only **code** in the context implements the *other* method. The model wanted to show code for the method in the question, couldn't find any, and wrote its own. It even reused the function name from the source chunk, which makes it look sourced. My grounding rule ("If you show code, copy it from an excerpt") is only an instruction in the system prompt. Nothing in `rag.ask()` checks it. My programmatic attribution only checks that each `[n]` points to a real retrieved chunk. It doesn't check that the claim is actually *in* that chunk, and the made-up code block had no `[n]` at all, so it passed through untouched while the Sources list underneath made the whole answer look backed up. Q3 is a smaller version of the same thing: the sources say *that* Dijkstra needs non-negative edges but not *why*, so the model supplied its own "why" and cited [1] for it.
 
 **What you would change to fix it:**
+1. **A code check after generation.** Pull every fenced code block out of the answer, normalize whitespace and comments, and check it appears (or nearly appears) in one of the retrieved chunks. If it doesn't, remove it and show "code not shown: not in the sources".
+2. **A tighter prompt rule.** "If no excerpt contains code for what was asked, do not write code; say the sources only describe it in words." Also: "Don't explain *why* unless an excerpt explains why."
+3. **A claim-level check, longer term.** For each cited sentence, compare it against the cited chunk (embedding similarity or a second LLM call that verifies it) and flag sentences the chunk doesn't support.
 
 ---
 
@@ -476,9 +503,11 @@ The same pipeline also works from the command line: `python rag.py "your questio
 <!-- Reflect on how planning.md shaped your implementation.
      Answer both questions with at least 2–3 sentences each. -->
 
-**One way the spec helped you during implementation:**
+**One way the spec helped you during implementation:** Measuring the documents for the Chunking Strategy section (median section ~815 characters, 90% of code blocks under ~1,640) gave me concrete numbers to check the chunker against, instead of guessing whether "1,500 characters" was right. It also made me predict, in Anticipated Challenges, that Q2 (ceiling of a number) would be at risk because its answer is split between prose and code. That's exactly where the first real bug showed up. And because the AI Tool Plan said to test retrieval on all 5 questions *before* adding generation, I caught it at the retrieval stage: Q2 only returned 2 chunks, and the one with the actual code was missing.
 
-**One way your implementation diverged from the spec, and why:**
+**One way your implementation diverged from the spec, and why:** The spec said to take the 10 nearest chunks and keep at most 2 per document. During retrieval testing that turned out to be too strict. For Q2, all 10 candidates came from GitHub Pattern 11, so the cap threw away 8 of them, including the ceiling code chunk (`-0004`, distance 0.142), and only 2 chunks came back. I changed it to 25 candidates with max 3 per document. The cap still stops the textbook (45% of all chunks) from taking every slot, but when one document really is the best source, both its explanation and its code get through. I also added two things that weren't in the spec at all:
+- a 0.38 distance cutoff that refuses before the LLM is called, which I set after seeing that off-topic questions scored 0.42+ while real questions scored at most 0.32
+- two chunking rules (keep a subsection with its parent, fold short leftovers back), added after reading the first batch of chunks
 
 ---
 
@@ -495,12 +524,12 @@ The same pipeline also works from the command line: `python rag.py "your questio
 
 **Instance 1**
 
-- *What I gave the AI:*
-- *What it produced:*
-- *What I changed or overrode:*
+- *What I gave the AI:* I gave Claude (Claude Code) my list of source URLs (a Google Doc) and asked it to collect and clean the documents. Later I gave it my Chunking Strategy section and asked it to build the chunker.
+- *What it produced:* `fetch_sources.py`, which downloads the W3Schools pages, GitHub pattern files, articles and the textbook PDF into cleaned Markdown, and later `ingest.py` for chunking. It recommended leaving the textbook out of the index, because it's 56% of the corpus, its extracted text is messy, and it can't be committed to a public repo.
+- *What I changed or overrode:* I overrode that and kept the textbook in. That meant the chunker needed a whole textbook-cleaning step (page headers, `(cid:NN)` glyphs, hyphenation, dropping Exercises) and the per-document cap in retrieval. The textbook does show up in answers (Q5's O(n + m) BFS bound comes from it), and it's still gitignored so the PDF isn't redistributed.
 
 **Instance 2**
 
-- *What I gave the AI:*
-- *What it produced:*
-- *What I changed or overrode:*
+- *What I gave the AI:* My Retrieval Approach and Architecture sections, plus the grounding requirements (answer only from retrieved chunks, always cite, refuse if the answer isn't there), and I asked for the generation step and the Gradio interface.
+- *What it produced:* `rag.py` with `retrieve()`, `build_prompt()` and `ask()`, and `app.py`. The original plan used Groq's `llama-3.3-70b-versatile`.
+- *What I changed or overrode:* I switched the model to `openai/gpt-oss-20b` (also on Groq). That affected the evaluation: gpt-oss-20b followed the citation format well, but it still added a code block of its own in Q1 (see Failure Case Analysis).
