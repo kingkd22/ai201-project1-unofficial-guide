@@ -5,6 +5,8 @@
 > Do not write placeholder text — if a section isn't done yet, leave it blank and come back.
 > Every section below is required for submission. One-liners will not receive full credit.
 
+**Demo video:** https://www.loom.com/share/2af35eb54b5b43eeb509ea1ae28917b7
+
 ---
 
 ## How to Run
